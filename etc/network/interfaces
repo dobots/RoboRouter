@@ -1,0 +1,44 @@
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet dhcp
+
+auto eth0:1
+iface eth0:1 inet static
+  address 192.168.0.1
+  netmask 255.255.255.0
+
+#allow-hotplug wlan0
+auto wlan0
+iface wlan0 inet manual
+  wpa-roam /etc/wpa_supplicant/wpa_roam.conf
+
+  # reset existing rules and chains
+  up /sbin/iptables -F
+  up /sbin/iptables -X
+  up /sbin/iptables -t nat -F
+
+  up iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
+  up iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+  up sysctl -w net.ipv4.ip_forward=1
+
+iface default inet dhcp
+
+iface rover inet dhcp
+  up iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 5000 -j DNAT --to-destination 192.168.1.100:80
+
+iface ac13 inet dhcp
+  up iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 5000 -j DNAT --to-destination 192.168.1.100:80
+
+iface spytank inet dhcp
+  up ip route flush table 11
+  up ip rule add fwmark 11 table 11
+  up ip route add default dev wlan0 table 11
+  up ip route flush cache
+
+  up iptables -A PREROUTING -i eth0 -t mangle -p tcp --dport 6001 -j MARK --set-mark 11
+  up iptables -A PREROUTING -i eth0 -t mangle -p tcp --dport 6000 -j MARK --set-mark 11
+
+  up iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 6000 -j DNAT --to-destination 10.10.1.1:8150
+  up iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 6001 -j DNAT --to-destination 10.10.1.1:8196
